@@ -248,6 +248,27 @@ const completeCheckoutInputSchema = z.object({
     .describe("Checkout object containing payment credentials and finalization data.")
 });
 
+const cancelCheckoutInputSchema = z.object({
+  shop_domain: z
+    .string()
+    .describe("The shop domain to call. This maps to https://{shop-domain}/api/ucp/mcp."),
+  meta: z
+    .object({
+      "ucp-agent": z.object({
+        profile: z
+          .string()
+          .url()
+          .describe("The URI to your agent's UCP profile for capability negotiation.")
+      }),
+      "idempotency-key": z
+        .string()
+        .uuid()
+        .describe("A UUID required for retry safety.")
+    })
+    .describe("Request metadata. You must include ucp-agent.profile and idempotency-key."),
+  id: z.string().describe("The ID of the checkout session to cancel.")
+});
+
 function createServer() {
   const server = new McpServer({
     name: "Hello MCP Server",
@@ -456,6 +477,59 @@ function createServer() {
               meta,
               id,
               checkout
+            }
+          }
+        })
+      });
+
+      const result = await response.json() as Record<string, unknown>;
+
+      if ("error" in result) {
+        return {
+          content: [
+            {
+              text: JSON.stringify(result),
+              type: "text"
+            }
+          ],
+          structuredContent: result,
+          isError: true
+        };
+      }
+
+      return {
+        content: [
+          {
+            text: JSON.stringify(result),
+            type: "text"
+          }
+        ],
+        structuredContent: result
+      };
+    }
+  );
+
+  server.registerTool(
+    "cancel_checkout",
+    {
+      description: "Cancel an active checkout session.",
+      inputSchema: cancelCheckoutInputSchema
+    },
+    async ({ shop_domain, meta, id }: z.infer<typeof cancelCheckoutInputSchema>) => {
+      const response = await fetch(`https://${shop_domain}/api/ucp/mcp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "tools/call",
+          id: 1,
+          params: {
+            name: "cancel_checkout",
+            arguments: {
+              meta,
+              id
             }
           }
         })
