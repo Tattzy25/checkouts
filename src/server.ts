@@ -89,6 +89,14 @@ const createCheckoutInputSchema = z.object({
           "Optional attribution metadata. Supported fields include referring_domain, click_id_tag, click_id_value, activity_id_tag, activity_id_value, utm_campaign, utm_source, utm_medium, utm_content, and utm_term."
         )
         .optional(),
+      discounts: z
+        .object({
+          codes: z.array(z.string()).describe("Discount codes to apply to the checkout.")
+        })
+        .describe(
+          "Optional discount codes. Forward cart discount codes in checkout.discounts.codes during cart-to-checkout conversion."
+        )
+        .optional(),
       fulfillment: z
         .object({})
         .passthrough()
@@ -104,6 +112,43 @@ const createCheckoutInputSchema = z.object({
       "The checkout object containing all checkout data. Optional when cart_id is provided, in which case the cart's contents are used instead."
     )
     .optional()
+}).superRefine((value, ctx) => {
+  if (value.cart_id) {
+    return;
+  }
+
+  if (!value.checkout) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "checkout is required when cart_id is not provided.",
+      path: ["checkout"]
+    });
+    return;
+  }
+
+  if (!value.checkout.currency) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "checkout.currency is required when cart_id is not provided.",
+      path: ["checkout", "currency"]
+    });
+  }
+
+  if (!value.checkout.line_items) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "checkout.line_items is required when cart_id is not provided.",
+      path: ["checkout", "line_items"]
+    });
+  }
+
+  if (!value.checkout.buyer) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "checkout.buyer is required when cart_id is not provided.",
+      path: ["checkout", "buyer"]
+    });
+  }
 });
 
 const getCheckoutInputSchema = z.object({
@@ -196,6 +241,12 @@ const updateCheckoutInputSchema = z.object({
         .describe(
           "Attribution metadata. Because the checkout object is replaced, resend attribution if you want to preserve it."
         )
+        .optional(),
+      discounts: z
+        .object({
+          codes: z.array(z.string()).describe("Updated discount codes for the checkout.")
+        })
+        .describe("Updated discount codes for the checkout.")
         .optional(),
       fulfillment: z
         .object({})
